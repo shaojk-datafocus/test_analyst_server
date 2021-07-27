@@ -29,6 +29,9 @@ def connectWorker(addr,port):
 
 @system.route('/worker/list')
 def listWorker():
+    name = request.args.get('name')
+    if name:
+        return wrap_response([worker.toJson() for worker in Worker.query.filter(Worker.name.ilike(f'%{name}%')).order_by(db.desc(Worker.status)).all()])
     return wrap_response([worker.toJson() for worker in Worker.query.order_by(db.desc(Worker.status)).all()])
 
 @system.route('/worker/add', methods=['POST'])

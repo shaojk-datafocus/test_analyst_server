@@ -23,10 +23,8 @@ def detailTask(id):
     task = Task.query.filter_by(id=id).first()
     if task:
         task = task.toJson()
-        task.last_task = None
-        lastTask = Task.query.filter_by(next_task=id).with_entities(Task.id,Task.taskname).first()
-        if lastTask:
-            task.last_task = {"id": lastTask[0], "taskname": lastTask[1]}
+        lastTask = task.last_task = Task.query.filter_by(next_task=id).with_entities(Task.id).first()
+        if lastTask: task.last_task = lastTask[0]
         return wrap_response(task)
     else:
         return wrap_response(errCode=10137,exception="任务不存在")
@@ -57,9 +55,10 @@ def updateTask():
             if scheduler.get_job(str(task.id)):
                 scheduler.remove_job(str(task.id))
             job = scheduler.add_job(func=copy_current_request_context(executeTask), id=str(task.id), args=formulateTask(task), trigger='cron', replace_existing=True, **schedule)
-            job.next_run_time()
+            print("下一次执行时间",job.next_run_time)
             task.schedule_status = True
-    task.content = ",".join([str(i) for i in task.content])
+    if type(task.content) == list:
+        task.content = ",".join([str(i) for i in task.content])
     Task.query.filter_by(id=task.id).update(task.forUpdate('taskname', 'description', 'creator', 'host', 'content', 'worker_id', 'schedule', 'next_task','branch'))
     return json.dumps({"data": None, "errCode": 0, "exception": "", "success": True})
 

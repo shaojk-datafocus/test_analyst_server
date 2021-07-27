@@ -23,7 +23,7 @@ scheduler.start()
 app.register_blueprint(example)
 app.register_blueprint(task)
 app.register_blueprint(system)
-with app.app_context():
+with app.app_context(): # 在本地debug不连接worker和启动定时任务
     initWorkers()
     initSchedules(app)
 
