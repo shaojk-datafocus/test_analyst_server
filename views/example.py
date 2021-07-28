@@ -84,4 +84,4 @@ def deleteExamplesByBatch():
 def reportExample():
     result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
     print(result)
-    return wrap_response(result.toJson)
+    return wrap_response(result)

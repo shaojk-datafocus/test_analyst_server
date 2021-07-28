@@ -59,7 +59,7 @@ def updateTask():
             task.schedule_status = True
     if type(task.content) == list:
         task.content = ",".join([str(i) for i in task.content])
-    Task.query.filter_by(id=task.id).update(task.forUpdate('taskname', 'description', 'creator', 'host', 'content', 'worker_id', 'schedule', 'next_task','branch'))
+    Task.query.filter_by(id=task.id).update(task.forUpdate('taskname', 'description', 'creator', 'host', 'content', 'worker_id', 'schedule', 'next_task','branch','sql_strategy'))
     return json.dumps({"data": None, "errCode": 0, "exception": "", "success": True})
 
 @task.route('/switch/<int:id>',methods=['POST'])
@@ -93,20 +93,20 @@ def deleteTask(id):
     Task.query.filter_by(id=id).delete()
     return wrap_response()
 
-@task.route('/trigger',methods=['POST'])
-def triggerTemplateTask():
-    task = get_post_form()
-    if task.worker_id:
-        worker = Worker.query.filter_by(id=task.worker_id).first()
-    else:
-        worker = Worker.query.filter_by(status=True).first() # TODO 这里以后需要，根据worker的工作量进行负载均衡
-    del task["worker"]
-    task.taskname = "临时任务_%s"%(time.strftime("%Y%m%d%H%M%S",time.localtime()))
-    task = createTask(task)
-    if executeTask(*formulateTask(task,worker)):
-        return wrap_response(task.toJson())
-    else:
-        return wrap_response(task.toJson(),errCode=10506,exception="执行任务失败")
+# @task.route('/trigger',methods=['POST'])
+# def triggerTemplateTask():
+#     task = get_post_form()
+#     if task.worker_id:
+#         worker = Worker.query.filter_by(id=task.worker_id).first()
+#     else:
+#         worker = Worker.query.filter_by(status=True).first() # TODO 这里以后需要，根据worker的工作量进行负载均衡
+#     del task["worker"]
+#     task.taskname = "临时任务_%s"%(time.strftime("%Y%m%d%H%M%S",time.localtime()))
+#     task = createTask(task)
+#     if executeTask(*formulateTask(task,worker)):
+#         return wrap_response(task.toJson())
+#     else:
+#         return wrap_response(task.toJson(),errCode=10506,exception="执行任务失败")
 
 @task.route('/trigger/<int:id>',methods=['POST'])
 def triggerTask(id):
@@ -122,8 +122,16 @@ def triggerTask(id):
 
     return wrap_response(task.toJson())
 
+@task.route('/strategy/render', methods=['POST'])
+def getStrategy():
+    return wrap_response(renderStrategy(get_post_form().sql_strategy))
 
-@task.route('/<int:id>/report',methods=['POST'])
+def renderStrategy(conditions):
+    sql = "SELECT id from focus_test WHERE "+conditions
+    print("执行SQL语句：", sql)
+    return [row[0] for row in db.session.execute(sql)]
+
+@task.route('/<int:id>/report', methods=['POST'])
 def reportTask(id):
     result = get_post_form()
     task = Task.query.filter_by(id=id).first()
@@ -152,6 +160,9 @@ def executeTask(worker, task):
     print("执行测试任务", task.taskname)
     master.assign(worker["ip"],worker["port"])
     tests = dict()
+    # 优先执行SQL策略
+    if task.sql_strategy:
+        task.content = renderStrategy(task.sql_strategy)
     contents = task.content if type(task.content) == list else task.content.split(",")
     host = re.findall("^https?://([\w.:]+)", task.host)
     for test in Test.query.filter(Test.id.in_(contents)).all():
@@ -168,12 +179,13 @@ def executeTask(worker, task):
     plan = json.dumps([{'module': key, 'tests': value} for key, value in tests.items()])
 
     Task.query.filter_by(id=task.id).update({"execute_time":timestamp_to_str(time.time())})
-    try:
-        master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{}})
-        res = master.recv(command="run",response="start running")
-    except Exception as e:
-        print(e)
-        return False
+    # try:
+    print(task)
+    master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{}})
+    res = master.recv(command="run",response="start running")
+    # except Exception as e:
+    #     print("错误信息",e)
+    #     return False
     return res["errCode"] == 0
 
 def initSchedules(app):

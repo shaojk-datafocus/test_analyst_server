@@ -17,6 +17,7 @@ class Task(db.Model):
     execute_time = db.Column(db.TIMESTAMP)
     worker_id = db.Column(db.Integer, db.ForeignKey('focus_worker.id'))
     schedule = db.Column(db.String(256))
+    sql_strategy = db.Column(db.String(256))
     branch = db.Column(db.String(64)) # tenantrelease: No.0 depot
     schedule_status = db.Column(db.Boolean, default=False)
     next_task = db.Column(db.Integer, db.ForeignKey('focus_task.id'))
@@ -26,7 +27,7 @@ class Task(db.Model):
         return '<Task %s>' % self.taskname
 
     def keys(self):
-        return ('id', 'taskname', 'description', 'creator', 'host', 'content','execute_time','worker_id','schedule', 'schedule_status', 'next_task', 'elapse_time', 'branch')
+        return ('id', 'taskname', 'description', 'creator', 'host', 'content','execute_time','worker_id','schedule', 'sql_strategy', 'schedule_status', 'next_task', 'elapse_time', 'branch')
 
     def __getitem__(self, item):
         return getattr(self, item)
