@@ -4,7 +4,6 @@
 # @File    : example.py
 # @Remark  :
 import json
-import re
 import time
 
 from flask import Blueprint, request, copy_current_request_context
@@ -164,10 +163,9 @@ def executeTask(worker, task):
     if task.sql_strategy:
         task.content = renderStrategy(task.sql_strategy)
     contents = task.content if type(task.content) == list else task.content.split(",")
-    host = re.findall("^https?://([\w.:]+)", task.host)
     for test in Test.query.filter(Test.id.in_(contents)).all():
         # 创建用例执行记录
-        record = Record(status="pending",start_time=get_current_time(),task_id=task.id,test_id=test.id,branch=task.branch,host=host)
+        record = Record(status="pending",start_time=get_current_time(),task_id=task.id,test_id=test.id,branch=task.branch,host=task.host)
         db.session.add(record)
         db.session.flush()
         Test.query.filter_by(id=test.id).update({"status": "pending"})

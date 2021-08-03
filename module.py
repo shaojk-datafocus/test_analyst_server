@@ -22,6 +22,7 @@ class Task(db.Model):
     schedule_status = db.Column(db.Boolean, default=False)
     next_task = db.Column(db.Integer, db.ForeignKey('focus_task.id'))
     elapse_time = db.Column(db.Float)
+    record = db.relationship('Record', backref='task', lazy='joined')
 
     def __repr__(self):
         return '<Task %s>' % self.taskname

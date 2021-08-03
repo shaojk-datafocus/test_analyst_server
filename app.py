@@ -1,9 +1,7 @@
 # encoding=utf-8
 import json
-from datetime import datetime
 
-from flask import Flask, request, render_template
-from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import Flask
 
 from module import db, Test, Record, Task
 from views import example, task, system
@@ -11,7 +9,6 @@ from views.system import initWorkers
 from views.task import scheduler, initSchedules
 
 app = Flask(__name__)
-# app.wsgi_app = ProxyFix(app.wsgi_app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@192.168.0.93:5432/focustest'
 app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True # 自动commit
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -29,7 +26,8 @@ app.register_blueprint(system)
 
 @app.route('/')
 def hello_world():
-    return 'Hello, World!'
+    print("到了？")
+    return 'Hello, World!???'
 
 @app.route('/record/list')
 def listRecord():

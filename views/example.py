@@ -10,7 +10,7 @@ from flask import Blueprint, request
 from sqlalchemy import func
 
 import utils
-from module import Test, db, Record
+from module import Test, db, Record, Task
 from utils import get_post_form, wrap_response
 
 example = Blueprint('example',__name__,url_prefix="/example")
@@ -25,7 +25,13 @@ def detailExample(id):
 
 @example.route('/<int:id>/record')
 def recordExample(id):
-    return wrap_response([record.toJson() for record in Record.query.filter_by(test_id=id).order_by(db.desc(Record.start_time)).limit(20)])
+    records = Record.query.join(Task, Record.task_id == Task.id).filter(Record.test_id==id).order_by(db.desc(Record.start_time)).limit(20)
+    datas = []
+    for record in records:
+        item = record.toJson()
+        item["task_name"] = record.task.taskname if record.task else " - "
+        datas.append(item)
+    return wrap_response(datas)
 
 @example.route('/list')
 def listExample():
@@ -83,5 +89,4 @@ def deleteExamplesByBatch():
 @example.route('/report')
 def reportExample():
     result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
-    print(result)
-    return wrap_response(result)
+    return wrap_response([[row[0],row[1]] for row in result]) # 这么写是为了适配linux
