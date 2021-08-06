@@ -24,7 +24,7 @@ class Dict(dict):
             *args: 为属性值，存在则仅返回所给的更新项
         """
         if len(args)>0:
-            return dict([(key,None if self[key]=='' else self[key]) for key in args])
+            return dict([(key,None if self[key]=='' else self[key]) for key in args if key!='id'])
         else:
             return dict([(key,value) for key,value in self.items() if key!='id'])
 

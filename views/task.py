@@ -49,11 +49,13 @@ def addTask():
 def updateTask():
     task = get_post_form()
     if task.worker_id:
+        if scheduler.get_job(str(task.id)):
+            scheduler.remove_job(str(task.id))
         if task.schedule:
             schedule = json.loads(task.schedule)
-            if scheduler.get_job(str(task.id)):
-                scheduler.remove_job(str(task.id))
-            job = scheduler.add_job(func=copy_current_request_context(executeTask), id=str(task.id), args=formulateTask(task), trigger='cron', replace_existing=True, **schedule)
+            if 'trigger' not in schedule.keys():
+                schedule['trigger'] = 'cron'
+            job = scheduler.add_job(func=copy_current_request_context(executeTask), id=str(task.id), args=formulateTask(task), replace_existing=True, **schedule)
             print("下一次执行时间",job.next_run_time)
             task.schedule_status = True
     if type(task.content) == list:
@@ -70,7 +72,9 @@ def switchTask(id):
         return wrap_response(True)
     elif task.schedule: # 关→开
         schedule = json.loads(task.schedule)
-        scheduler.add_job(func=copy_current_request_context(executeTask), id=str(task.id), args=formulateTask(task), trigger='cron', replace_existing=True, **schedule)
+        if 'trigger' not in schedule.keys():
+            schedule['trigger'] = 'cron'
+        scheduler.add_job(func=copy_current_request_context(executeTask), id=str(task.id), args=formulateTask(task), replace_existing=True, **schedule)
         Task.query.filter_by(id=task.id).update({"schedule_status":True})
         return wrap_response(True)
     else: #关→开 fail
@@ -91,21 +95,6 @@ def deleteTask(id):
         scheduler.remove_job(str(id))
     Task.query.filter_by(id=id).delete()
     return wrap_response()
-
-# @task.route('/trigger',methods=['POST'])
-# def triggerTemplateTask():
-#     task = get_post_form()
-#     if task.worker_id:
-#         worker = Worker.query.filter_by(id=task.worker_id).first()
-#     else:
-#         worker = Worker.query.filter_by(status=True).first() # TODO 这里以后需要，根据worker的工作量进行负载均衡
-#     del task["worker"]
-#     task.taskname = "临时任务_%s"%(time.strftime("%Y%m%d%H%M%S",time.localtime()))
-#     task = createTask(task)
-#     if executeTask(*formulateTask(task,worker)):
-#         return wrap_response(task.toJson())
-#     else:
-#         return wrap_response(task.toJson(),errCode=10506,exception="执行任务失败")
 
 @task.route('/trigger/<int:id>',methods=['POST'])
 def triggerTask(id):
@@ -157,7 +146,7 @@ def formulateTask(task,worker=None):
 def executeTask(worker, task):
     """执行测试任务"""
     print("执行测试任务", task.taskname)
-    master.assign(worker["ip"],worker["port"])
+    # master.assign(worker["ip"],worker["port"])
     tests = dict()
     # 优先执行SQL策略
     if task.sql_strategy:
@@ -178,9 +167,9 @@ def executeTask(worker, task):
 
     Task.query.filter_by(id=task.id).update({"execute_time":timestamp_to_str(time.time())})
     # try:
-    print(task)
-    master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{}})
+    master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{}},worker)
     res = master.recv(command="run",response="start running")
+    print(res)
     # except Exception as e:
     #     print("错误信息",e)
     #     return False
@@ -190,12 +179,13 @@ def initSchedules(app):
     """webserver启动的时候，给所有已有的任务添加定时任务"""
     for task in Task.query.filter(Task.schedule.isnot(None)).all():
         schedule = json.loads(task.schedule)
+        if 'trigger' not in schedule.keys():
+            schedule['trigger'] = 'cron'
         try:
             def wrapper(*args, **kwargs):
                 with app.app_context():
                     return executeTask(*args, **kwargs)
-            scheduler.add_job(func=wrapper, id=str(task.id), args=formulateTask(task), trigger='cron',
-                              replace_existing=True, **schedule)
+            scheduler.add_job(func=wrapper, id=str(task.id), args=formulateTask(task), replace_existing=True, **schedule)
             print("添加定时任务<%s>"%task.taskname)
         except Exception as e:
             print(e)

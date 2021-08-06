@@ -3,6 +3,7 @@
 # @Author  : ShaoJK
 # @File    : CIMaster.py
 # @Remark  :
+import time
 import json
 import socket
 
@@ -15,7 +16,8 @@ class CIMaster():
     def __init__(self):
         self.workers = dict()
         self.worker = None
-        self.queue = Queue(maxsize=10)
+        self.recvQueue = Queue(maxsize=10)
+        self.sendQueue = Queue(maxsize=10) # 最大同时发起任务10
 
     def connect(self,addr,port=CIWORKER_PORT):
         addr = (addr, port)
@@ -26,27 +28,41 @@ class CIMaster():
         self.workers["%s:%d"%(addr[0],addr[1])] = s
         self.worker = s
 
-    def send(self,data:dict):
+    def _send(self,data:dict):
         self.worker.sendall(json.dumps(data).encode('utf-8'))
 
+    def send(self,data, worker=None):
+        self.sendQueue.put((data, worker))
+        while not self.sendQueue.empty():
+            data, worker = self.sendQueue.get()
+            self.assign(worker.ip,worker.port)
+            self._send(data)
+            time.sleep(1)
+
     def recv(self,**expect) -> dict:
-        found = False
-        while not found:
-            self._recv()
-            while not self.queue.empty():
-                res = self.queue.get()
+        found = -2
+        res = None
+        while found <= 0:
+            if self.recvQueue.empty():
+                self._recv()
+            while not self.recvQueue.empty():
+                res = self.recvQueue.get()
                 res_kv = list(map(lambda item: item[0]+str(item[1]),res.items()))
                 found = sum(list(map(lambda item: 0 if item[0]+str(item[1]) in res_kv else 1, expect.items()))) == 0
+            found += 1
         return res
 
     def _recv(self,timeout=10) -> dict:
-        self.worker.settimeout(timeout)
+        try:
+            self.worker.settimeout(timeout)
+        except Exception as e:
+            print(e)
         info = self.worker.recv(1024)
         info = info.decode('utf-8')
         print("Receive: ",info)
         for info in info.split('\n'):
-            if not self.queue.full() and info:
-                self.queue.put(json.loads(info))
+            if not self.recvQueue.full() and info:
+                self.recvQueue.put(json.loads(info))
 
     def assign(self,addr,port):
         """指定当前默认发送给的worker"""

@@ -50,6 +50,7 @@ class Test(db.Model):
     stability = db.Column(db.Integer)
     status = db.Column(db.String(16))
     execute_time = db.Column(db.TIMESTAMP)
+    last_record = db.relationship('Record', backref='test', lazy='dynamic')
 
     def __repr__(self):
         return '<Test %s>' % self.testname

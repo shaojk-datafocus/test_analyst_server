@@ -24,7 +24,7 @@ def detailExample(id):
         return wrap_response(errCode=10137,exception="用例不存在")
 
 @example.route('/<int:id>/record')
-def recordExample(id):
+def listRecord(id):
     records = Record.query.join(Task, Record.task_id == Task.id).filter(Record.test_id==id).order_by(db.desc(Record.start_time)).limit(20)
     datas = []
     for record in records:
@@ -88,5 +88,33 @@ def deleteExamplesByBatch():
 
 @example.route('/report')
 def reportExample():
-    result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
-    return wrap_response([[row[0],row[1]] for row in result]) # 这么写是为了适配linux
+    tests = Test.query.all()
+    counter = {'tenantrelease':{'success':0,'failed':0,'error':0,'pending':0,'running':0, None:0},
+               'hwsecurity':{'success':0,'failed':0,'error':0,'pending':0,'running':0, None:0},}
+    for test in tests:
+        for branch in counter.keys():
+            record = test.last_record.with_entities(Record.status).filter_by(branch=branch).order_by(db.desc(Record.start_time)).first()
+            if record:
+                counter[branch][record[0]] += 1
+            else:
+                counter[branch][None] += 1
+    return wrap_response(counter)
+    # result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
+    # return wrap_response([[row[0],row[1]] for row in result]) # 这么写是为了适配linux
+
+@example.route('/record', methods=['POST'])
+def recordExample():
+    """给用例报告当前执行状态"""
+    report = get_post_form()
+    print("收到用例状态修改报告")
+    print(report)
+    record = Record.query.filter_by(id=report.id).first()
+    test = Test.query.filter_by(id=record.test_id).first()
+    try:
+        status = json.loads(test.status)
+    except json.decoder.JSONDecodeError:
+        status = {}
+    status[record.branch] = report.status
+    Test.query.filter_by(id=test.id).update({'status':json.dumps(status)})
+    Record.query.filter_by(id=report.id).update(report.forUpdate(*report.keys()))
+    return wrap_response()
