@@ -4,13 +4,12 @@
 # @File    : example.py
 # @Remark  :
 import json
-import math
 
 from flask import Blueprint, request
 from sqlalchemy import func
 
 import utils
-from module import Test, db, Record, Task
+from module import Test, db, Record, Task, Tag
 from utils import get_post_form, wrap_response
 
 example = Blueprint('example',__name__,url_prefix="/example")
@@ -25,7 +24,7 @@ def detailExample(id):
 
 @example.route('/<int:id>/record')
 def listRecord(id):
-    records = Record.query.join(Task, Record.task_id == Task.id).filter(Record.test_id==id).order_by(db.desc(Record.start_time)).limit(20)
+    records = Record.query.join(Task, Record.task_id == Task.id).filter(Record.test_id==id).order_by(db.desc(Record.start_time)).limit(50)
     datas = []
     for record in records:
         item = record.toJson()
@@ -41,6 +40,7 @@ def listExample():
     modules = request.args.get('modules').split(',') if request.args.get('modules') else None
     creator = request.args.get('creator').split(',') if request.args.get('creator') else None
     status = request.args.get('status').split(',') if request.args.get('status') else None
+    tag = request.args.get('tag') if request.args.get('tag') else None
     filter = Test.testname.ilike(f'%{testname}%')
     if modules:
         filter &= Test.module.in_(modules)
@@ -48,6 +48,8 @@ def listExample():
         filter &= Test.creator.in_(creator)
     if status:
         filter &= Test.status.in_(status)
+    if tag and tag != 'All':
+        filter &= Test.tag_id == int(tag)
     res = {
         "datas": [test.toJson() for test in Test.query.filter(filter).order_by(db.desc(Test.execute_time)).offset((page - 1) * pageSize).limit(pageSize).all()],
         "total": db.session.query(func.count(Test.id)).filter(filter).scalar()
@@ -88,16 +90,11 @@ def deleteExamplesByBatch():
 
 @example.route('/report')
 def reportExample():
-    tests = Test.query.all()
-    counter = {'tenantrelease':{'success':0,'failed':0,'error':0,'pending':0,'running':0, None:0},
-               'hwsecurity':{'success':0,'failed':0,'error':0,'pending':0,'running':0, None:0},}
-    for test in tests:
-        for branch in counter.keys():
-            record = test.last_record.with_entities(Record.status).filter_by(branch=branch).order_by(db.desc(Record.start_time)).first()
-            if record:
-                counter[branch][record[0]] += 1
-            else:
-                counter[branch][None] += 1
+    counter = {}
+    for tag in Tag.query.all():
+        tests = Test.query.with_entities(Test.status, func.count(Test.id)).filter_by(tag_id=tag.id).group_by(Test.status).order_by(Test.status).all()
+        counter[tag.name] = dict([tuple(test) for test in tests])
+    print(counter)
     return wrap_response(counter)
     # result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
     # return wrap_response([[row[0],row[1]] for row in result]) # 这么写是为了适配linux
@@ -106,15 +103,13 @@ def reportExample():
 def recordExample():
     """给用例报告当前执行状态"""
     report = get_post_form()
-    print("收到用例状态修改报告")
-    print(report)
-    record = Record.query.filter_by(id=report.id).first()
+    record = Record.query.filter_by(id=report.record_id).first()
     test = Test.query.filter_by(id=record.test_id).first()
-    try:
-        status = json.loads(test.status)
-    except json.decoder.JSONDecodeError:
-        status = {}
-    status[record.branch] = report.status
-    Test.query.filter_by(id=test.id).update({'status':json.dumps(status)})
-    Record.query.filter_by(id=report.id).update(report.forUpdate(*report.keys()))
+    info = {'status': report.status}
+    if 'start_time' in report:
+        info['execute_time'] = report.start_time
+    elif 'elapse_time' in report:
+        info['elapse_time'] = report.elapse_time
+    Test.query.filter_by(id=test.id).update(info)
+    Record.query.filter_by(id=report.id).update(report.forUpdate(*filter(lambda k: 'id' not in k, report.keys())))
     return wrap_response()

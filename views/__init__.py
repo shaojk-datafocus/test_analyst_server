@@ -7,3 +7,4 @@
 from .example import example
 from .task import task
 from .system import system
+from .tag import tag

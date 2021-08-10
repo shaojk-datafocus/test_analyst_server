@@ -4,7 +4,7 @@ import json
 from flask import Flask
 
 from module import db, Test, Record, Task
-from views import example, task, system
+from views import example, task, system, tag
 from views.system import initWorkers
 from views.task import scheduler, initSchedules
 
@@ -20,9 +20,10 @@ scheduler.start()
 app.register_blueprint(example)
 app.register_blueprint(task)
 app.register_blueprint(system)
-# with app.app_context(): # 在本地debug不连接worker和启动定时任务
-#     initWorkers()
-#     initSchedules(app)
+app.register_blueprint(tag)
+with app.app_context(): # 在本地debug不连接worker和启动定时任务
+    initWorkers()
+    initSchedules(app)
 
 @app.route('/')
 def hello_world():

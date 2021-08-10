@@ -91,9 +91,9 @@ class CIWorker():
         with open(task_plan,"w") as f:
             f.write(content)
         self.send({"response": "start running", "errCode": 0, "command": "run"})
-        print(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}"')
+        print(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}" --server {self.master_url}')
         start_time = time.time()
-        errCode = os.system(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}"')
+        errCode = os.system(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}" --server "{self.master_url}"')
         elapse_time = time.time() - start_time
         self.send(wrap_response("run","finished",errCode))
         res = self.post("/api/task/%d/report"%task_id,json={"elapse_time":elapse_time, "execute_time": start_time})

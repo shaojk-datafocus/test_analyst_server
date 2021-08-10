@@ -33,7 +33,10 @@ def listTask():
     page = int(request.args.get('page'))
     pageSize = int(request.args.get('pageSize'))
     taskname = request.args.get('taskname')
+    tag = request.args.get('tag') if request.args.get('tag') else None
     filter = Task.taskname.ilike(f'%{taskname}%')
+    if tag and tag != 'All':
+        filter &= Task.tag_id == int(tag)
     return wrap_response({
         "datas": [task.toJson() for task in Task.query.filter(filter).order_by(db.desc(Task.execute_time)).offset((page - 1) * pageSize).limit(pageSize).all()],
         "total": db.session.query(func.count(Task.id)).filter(filter).scalar()
@@ -60,7 +63,7 @@ def updateTask():
             task.schedule_status = True
     if type(task.content) == list:
         task.content = ",".join([str(i) for i in task.content])
-    Task.query.filter_by(id=task.id).update(task.forUpdate('taskname', 'description', 'creator', 'host', 'content', 'worker_id', 'schedule', 'next_task','branch','sql_strategy'))
+    Task.query.filter_by(id=task.id).update(task.forUpdate('taskname', 'description', 'creator', 'host', 'content', 'worker_id', 'schedule', 'next_task','branch','sql_strategy','tag_id'))
     return json.dumps({"data": None, "errCode": 0, "exception": "", "success": True})
 
 @task.route('/switch/<int:id>',methods=['POST'])
@@ -115,7 +118,8 @@ def getStrategy():
     return wrap_response(renderStrategy(get_post_form().sql_strategy))
 
 def renderStrategy(conditions):
-    sql = "SELECT id from focus_test WHERE "+conditions
+    # sql = "SELECT id from focus_test WHERE "+conditions
+    sql = "SELECT * FROM focus_test INNER JOIN focus_tag ON focus_test.tag_id=focus_tag.id WHERE "+conditions
     print("执行SQL语句：", sql)
     return [row[0] for row in db.session.execute(sql)]
 

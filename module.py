@@ -22,13 +22,14 @@ class Task(db.Model):
     schedule_status = db.Column(db.Boolean, default=False)
     next_task = db.Column(db.Integer, db.ForeignKey('focus_task.id'))
     elapse_time = db.Column(db.Float)
+    tag_id = db.Column(db.Integer, db.ForeignKey('focus_tag.id'))
     record = db.relationship('Record', backref='task', lazy='joined')
 
     def __repr__(self):
         return '<Task %s>' % self.taskname
 
     def keys(self):
-        return ('id', 'taskname', 'description', 'creator', 'host', 'content','execute_time','worker_id','schedule', 'sql_strategy', 'schedule_status', 'next_task', 'elapse_time', 'branch')
+        return ('id', 'taskname', 'description', 'creator', 'host', 'content','execute_time','worker_id','schedule', 'sql_strategy', 'schedule_status', 'next_task', 'elapse_time', 'branch', 'tag_id')
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -41,7 +42,7 @@ class Task(db.Model):
 class Test(db.Model):
     __tablename__ = 'focus_test'
     id = db.Column(db.Integer, primary_key=True)
-    testname = db.Column(db.String(64), unique=True)
+    testname = db.Column(db.String(64))
     module = db.Column(db.String(64), nullable=False)
     function = db.Column(db.String(64), nullable=False)
     description = db.Column(db.String(256))
@@ -51,12 +52,13 @@ class Test(db.Model):
     status = db.Column(db.String(16))
     execute_time = db.Column(db.TIMESTAMP)
     last_record = db.relationship('Record', backref='test', lazy='dynamic')
+    tag_id = db.Column(db.Integer, db.ForeignKey('focus_tag.id'))
 
     def __repr__(self):
         return '<Test %s>' % self.testname
 
     def keys(self):
-        return ('id', 'testname', 'module', 'function', 'description', 'creator', 'elapse_time', 'stability','status', 'execute_time')
+        return ('id', 'testname', 'module', 'function', 'description', 'creator', 'elapse_time', 'stability','status', 'execute_time', 'tag_id')
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -94,6 +96,23 @@ class Record(db.Model):
         d.start_time = str(d.start_time)
         d.end_time = str(d.end_time)
         return d
+
+class Tag(db.Model):
+    __tablename__ = 'focus_tag'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(64))
+
+    def __repr__(self):
+        return '<Tag %s>' % self.id
+
+    def keys(self):
+        return ('id', 'name')
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def toJson(self):
+        return Dict(self)
 
 class Worker(db.Model):
     __tablename__ = 'focus_worker'
