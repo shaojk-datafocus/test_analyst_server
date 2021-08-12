@@ -28,7 +28,8 @@ class Task(db.Model):
     def __repr__(self):
         return '<Task %s>' % self.taskname
 
-    def keys(self):
+    @staticmethod
+    def keys():
         return ('id', 'taskname', 'description', 'creator', 'host', 'content','execute_time','worker_id','schedule', 'sql_strategy', 'schedule_status', 'next_task', 'elapse_time', 'branch', 'tag_id')
 
     def __getitem__(self, item):

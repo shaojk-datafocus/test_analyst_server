@@ -48,6 +48,12 @@ def addTask():
     task = createTask(task)
     return wrap_response(task.toJson())
 
+@task.route('/add/trigger', methods=['POST'])
+def addTaskAndTrigger():
+    task = get_post_form()
+    task = createTask(task)
+    return triggerTask(task.id)
+
 @task.route('/update',methods=['POST'])
 def updateTask():
     task = get_post_form()
@@ -110,7 +116,6 @@ def triggerTask(id):
         return wrap_response(task.toJson())
     else:
         return wrap_response(task.toJson(),errCode=10506,exception="执行任务失败")
-
     return wrap_response(task.toJson())
 
 @task.route('/strategy/render', methods=['POST'])
@@ -127,9 +132,10 @@ def renderStrategy(conditions):
 def reportTask(id):
     result = get_post_form()
     task = Task.query.filter_by(id=id).first()
-    Task.query.filter_by(id=task.id).update({"elapse_time":result.elapse_time,"execute_time":timestamp_to_str(result.execute_time)})
-    if task.next_task:
-        triggerTask(task.next_task)
+    if task:
+        Task.query.filter_by(id=task.id).update({"elapse_time":result.elapse_time,"execute_time":timestamp_to_str(result.execute_time)})
+        if task.next_task:
+            triggerTask(task.next_task)
     return wrap_response()
 
 def createTask(task=None)->Task:
@@ -137,7 +143,7 @@ def createTask(task=None)->Task:
         task = get_post_form()
     if type(task.content) == list:
         task.content = ",".join(map(lambda x: str(x),task.content))
-    task = Task(**task)
+    task = Task(**task.forUpdate(*Task.keys()))
     db.session.add(task)
     db.session.flush()
     return task

@@ -94,22 +94,18 @@ def reportExample():
     for tag in Tag.query.all():
         tests = Test.query.with_entities(Test.status, func.count(Test.id)).filter_by(tag_id=tag.id).group_by(Test.status).order_by(Test.status).all()
         counter[tag.name] = dict([tuple(test) for test in tests])
-    print(counter)
     return wrap_response(counter)
-    # result = Test.query.with_entities(Test.status, func.count(Test.id)).group_by(Test.status).order_by(Test.status).all()
-    # return wrap_response([[row[0],row[1]] for row in result]) # 这么写是为了适配linux
 
 @example.route('/record', methods=['POST'])
 def recordExample():
     """给用例报告当前执行状态"""
     report = get_post_form()
-    record = Record.query.filter_by(id=report.record_id).first()
-    test = Test.query.filter_by(id=record.test_id).first()
     info = {'status': report.status}
     if 'start_time' in report:
         info['execute_time'] = report.start_time
     elif 'elapse_time' in report:
         info['elapse_time'] = report.elapse_time
-    Test.query.filter_by(id=test.id).update(info)
-    Record.query.filter_by(id=report.id).update(report.forUpdate(*filter(lambda k: 'id' not in k, report.keys())))
+    Test.query.filter_by(id=report.test_id).update(info)
+    info = report.forUpdate(*filter(lambda k: 'id' not in k, report.keys()))
+    Record.query.filter_by(id=report.record_id).update(info)
     return wrap_response()
