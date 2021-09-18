@@ -9,11 +9,12 @@ import socket
 import threading
 import time
 from optparse import OptionParser
+from queue import Queue
 
 import requests
 
 
-def wrap_response(command, response, errCode, **kwargs):
+def wrap_response(command, response, errCode=0, **kwargs):
     return {"command": command, "response": response, "errCode": errCode, **kwargs}
 
 class CIWorker():
@@ -30,6 +31,8 @@ class CIWorker():
         self.addr = addr
         self.root = os.path.join(os.getcwd(),root).replace("/","\\")
         print("Start a worker assigned by %s:%d, and execute code folder at %s"%(*addr,self.root))
+        self.tasks = dict()
+        self.max_tasks = 5
         self.quit = False
         self.python = "py -3" if compat2 else "python"
         self.username = username
@@ -45,12 +48,18 @@ class CIWorker():
         while not self.quit:
             info = self.recv()
             if info:
-                print(info)
-                thread = threading.Thread(target=getattr(self, info["command"]),args=info["args"],kwargs=info["kwargs"],daemon=True)
-                thread.start()
+                if info['command'] == 'run':
+                    thread = threading.Thread(target=getattr(self, info["command"]),args=info["args"],kwargs=info["kwargs"],daemon=True)
+                    thread.start()
+                    if len(self.tasks)<self.max_tasks:
+                        self.tasks[info['id']] = thread
+                elif info['command'] == 'stop':
+                    if info['id'] in len(self.tasks):
+                        self.tasks[info['id']].join(3)
+                        self.send(wrap_response("stop","finished"))
 
     def send(self,data:dict):
-        print("Send: ",data)
+        print("发送数据: ",data)
         self.connect.sendall((json.dumps(data)+'\n').encode('utf-8'))
 
     def recv(self) -> dict:
@@ -97,7 +106,6 @@ class CIWorker():
         elapse_time = time.time() - start_time
         self.send(wrap_response("run","finished",errCode))
         res = self.post("/api/task/%d/report"%task_id,json={"elapse_time":elapse_time, "execute_time": start_time})
-        print(res)
         print("测试用例执行完成")
 
     def stop(self):
