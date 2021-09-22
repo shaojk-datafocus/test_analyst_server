@@ -105,6 +105,14 @@ def deleteTask(id):
     Task.query.filter_by(id=id).delete()
     return wrap_response()
 
+@task.route('/terminate/<int:id>',methods=['POST'])
+def terminateTask(id):
+    task = Task.query.filter_by(id=id).first()
+    worker = Worker.query.filter_by(id=task.worker_id).first()
+    task.record.sort(key=lambda x: x['id'])
+    master.send({"command": "stop", "args": [task.id], "kwargs": {}},worker)
+    return wrap_response()
+
 @task.route('/trigger/<int:id>',methods=['POST'])
 def triggerTask(id):
     task = Task.query.filter_by(id=id).first()
@@ -177,7 +185,7 @@ def executeTask(worker, task):
 
     Task.query.filter_by(id=task.id).update({"execute_time":timestamp_to_str(time.time())})
     # try:
-    master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{}},worker)
+    master.send({"command":"run","args":[plan,task.id,task.host,json.loads(worker.branch)[task.branch]],"kwargs":{},"id":task.id},worker)
     res = master.recv(command="run",response="start running")
     print(res)
     # except Exception as e:

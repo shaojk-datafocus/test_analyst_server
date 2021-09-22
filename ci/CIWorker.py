@@ -9,7 +9,6 @@ import socket
 import threading
 import time
 from optparse import OptionParser
-from queue import Queue
 
 import requests
 
@@ -48,18 +47,18 @@ class CIWorker():
         while not self.quit:
             info = self.recv()
             if info:
-                if info['command'] == 'run':
+                if info['command'] == 'stop':
+                    print(info['args'][0], self.tasks.keys())
+                    if info['args'][0] in self.tasks.keys():
+                        self.tasks[info['args'][0]].join(1)
+                        self.send(wrap_response("stop","finished",data=info['args'][0]))
+                else:
                     thread = threading.Thread(target=getattr(self, info["command"]),args=info["args"],kwargs=info["kwargs"],daemon=True)
                     thread.start()
-                    if len(self.tasks)<self.max_tasks:
+                    if "id" in info.keys() and len(self.tasks)<self.max_tasks:
                         self.tasks[info['id']] = thread
-                elif info['command'] == 'stop':
-                    if info['id'] in len(self.tasks):
-                        self.tasks[info['id']].join(3)
-                        self.send(wrap_response("stop","finished"))
 
     def send(self,data:dict):
-        print("发送数据: ",data)
         self.connect.sendall((json.dumps(data)+'\n').encode('utf-8'))
 
     def recv(self) -> dict:
@@ -100,11 +99,11 @@ class CIWorker():
         with open(task_plan,"w") as f:
             f.write(content)
         self.send({"response": "start running", "errCode": 0, "command": "run"})
-        print(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}" --server {self.master_url}')
+        # print(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}" --server {self.master_url}')
         start_time = time.time()
         errCode = os.system(f'cd {root} && {self.python} entry-free.py --host "{host}" -u "{self.username}" --plan "{task_plan}" -o "{root}" --server "{self.master_url}"')
         elapse_time = time.time() - start_time
-        self.send(wrap_response("run","finished",errCode))
+        self.send(wrap_response("run","finished"),errCode)
         res = self.post("/api/task/%d/report"%task_id,json={"elapse_time":elapse_time, "execute_time": start_time})
         print("测试用例执行完成")
 
